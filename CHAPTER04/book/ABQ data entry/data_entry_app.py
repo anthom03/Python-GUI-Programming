@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 import csv
 import tkinter as tk
+from decimal import Decimal, InvalidOperation
 from tkinter import ttk
 
 
@@ -26,6 +27,10 @@ class LabelInput(tk.Frame):
         self.input = input_class(self, **input_args)
         self.input.grid(row=1, column=0, sticky=(tk.W + tk.E))
         self.columnconfigure(0, weight=1)
+
+        self.error = getattr(self.input, 'error', tk.StringVar())
+        self.error_label = ttk.Label(self, textvariable=self.error)
+        self.error_label.grid(row=2, column=0, sticky=(tk.W + tk.E))
 
     def grid(self, sticky=(tk.E + tk.W), **kwargs):
         super().grid(sticky=sticky, **kwargs)
@@ -71,50 +76,120 @@ class DataRecordForm(tk.Frame):
 
         recordinfo = tk.LabelFrame(self, text="Record Information")
 
-        self.inputs['Date'] = LabelInput(recordinfo, 'Date', input_var=tk.StringVar())
+        self.inputs['Date'] = LabelInput(recordinfo, 'Date', input_class=DateEntry, input_var=tk.StringVar())
         self.inputs['Date'].grid(row=0, column=0)
 
-        self.inputs['Time'] = LabelInput(recordinfo, 'Time', input_class=ttk.Combobox, input_var=tk.StringVar(), input_args={"values": ['8:00', '12:00', '16:00', '20:00']})
+        self.inputs['Time'] = LabelInput(recordinfo, 'Time', input_class=ValidatedCombobox, input_var=tk.StringVar(), input_args={"values": ['8:00', '12:00', '16:00', '20:00']})
         self.inputs['Time'].grid(row=0, column=1)
 
-        self.inputs['Technician'] = LabelInput(recordinfo, 'Technician', input_var=tk.StringVar())
+        self.inputs['Technician'] = LabelInput(recordinfo, 'Technician', input_class=RequiredEntry, input_var=tk.StringVar())
         self.inputs['Technician'].grid(row=0, column=2)
 
         # line 2
-        self.inputs['Lab'] = LabelInput(recordinfo, 'Lab', input_class=ttk.Combobox, input_var=tk.StringVar(), input_args={'values': ['A', 'B', 'C', 'D', 'E']})
+        self.inputs['Lab'] = LabelInput(recordinfo, 'Lab', input_class=ValidatedCombobox, input_var=tk.StringVar(), input_args={'values': ['A', 'B', 'C', 'D', 'E']})
         self.inputs['Lab'].grid(row=1, column=0)
 
-        self.inputs['Plot'] = LabelInput(recordinfo, 'Plot', input_class=ttk.Combobox, input_var=tk.IntVar(), input_args={'values': list(range(1, 21))})
+        self.inputs['Plot'] = LabelInput(recordinfo, 'Plot', input_class=ValidatedCombobox, input_var=tk.StringVar(), input_args={'values': [str(x) for x in range(1, 21)]})
         self.inputs['Plot'].grid(row=1, column=1)
 
-        self.inputs['Seed sample'] = LabelInput(recordinfo, 'Seed sample', input_var=tk.StringVar())
+        self.inputs['Seed sample'] = LabelInput(recordinfo, 'Seed sample', input_class=RequiredEntry, input_var=tk.StringVar())
         self.inputs['Seed sample'].grid(row=1, column=2)
 
         recordinfo.grid(row=0, column=0, sticky=tk.W + tk.E)
 
         # Environment Data
         environmentinfo = tk.LabelFrame(self, text='Environment Data')
-        self.inputs['Humidity'] = LabelInput(environmentinfo, 'Humidity (g/m^3)', input_class=ttk.Spinbox, input_var=tk.DoubleVar(), input_args={'from_': 0.5, 'to': 52.0, 'increment': .01})
+        self.inputs['Humidity'] = LabelInput(environmentinfo, 'Humidity (g/m^3)', input_class=ValidatedSpinbox, input_var=tk.DoubleVar(), input_args={'from_': '0.5', 'to': '52.0', 'increment': '.01'})
         self.inputs['Humidity'].grid(row=0, column=0)
 
-        self.inputs['Equipment Fault'] = LabelInput(environmentinfo, 'Equipment Fault', input_class=ttk.Checkbutton, input_var=tk.BooleanVar())
+        self.inputs['Light'] = LabelInput(
+            environmentinfo, "Light (klx)",
+            input_class=ValidatedSpinbox,
+            input_var=tk.DoubleVar(),
+            input_args={"from_": '0', "to": '100', "increment": '.01'}
+        )
+        self.inputs['Light'].grid(row=0, column=1)
+
+        self.inputs['Temperature'] = LabelInput(
+            environmentinfo, "Temperature (°C)",
+            input_class=ValidatedSpinbox,
+            input_var=tk.DoubleVar(),
+            input_args={"from_": '4', "to": '40', "increment": '.01'}
+        )
+        self.inputs['Temperature'].grid(row=0, column=2)
+
+        self.inputs['Equipment Fault'] = LabelInput(
+            environmentinfo, "Equipment Fault",
+            input_class=ttk.Checkbutton,
+            input_var=tk.BooleanVar()
+        )
         self.inputs['Equipment Fault'].grid(row=1, column=0, columnspan=3)
+
+        environmentinfo.grid(row=1, column=0, sticky="we")
 
         plantinfo = tk.LabelFrame(self, text='Plant Data')
 
         self.inputs['Plants'] = LabelInput(
             plantinfo, 'Plants',
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             input_var=tk.IntVar(),
-            input_args={'from_': 0, 'to': 20})
+            input_args={'from_': '0', 'to': '20'})
         self.inputs['Plants'].grid(row=0, column=0)
 
         self.inputs['Blossoms'] = LabelInput(
             plantinfo, 'Blossoms',
-            input_class=ttk.Spinbox,
+            input_class=ValidatedSpinbox,
             input_var=tk.IntVar(),
-            input_args={'from_': 0, 'to': 1000})
+            input_args={'from_': '0', 'to': '1000'})
         self.inputs['Blossoms'].grid(row=0, column=1)
+
+        self.inputs['Fruit'] = LabelInput(
+            plantinfo, "Fruit",
+            input_class=ValidatedSpinbox,
+            input_var=tk.IntVar(),
+            input_args={"from_": '0', "to": '1000'}
+        )
+        self.inputs['Fruit'].grid(row=0, column=2)
+
+        # Height data
+        # create variables to be updates for min/max height
+        # they can be referenced for min/max variables
+        min_height_var = tk.DoubleVar(value='-infinity')
+        max_height_var = tk.DoubleVar(value='infinity')
+
+        self.inputs['Min Height'] = LabelInput(
+            plantinfo, 'Min Height (cm)',
+            input_class=ValidatedSpinbox,
+            input_var=tk.DoubleVar(),
+            input_args={
+                'from_': '0', 'to': '1000', 'increment': '.01',
+                'max_var': max_height_var, 'focus_update_var': min_height_var
+            }
+        )
+        self.inputs['Min Height'].grid(row=1, column=0)
+
+        self.inputs['Max Height'] = LabelInput(
+            plantinfo, "Max Height (cm)",
+            input_class=ValidatedSpinbox,
+            input_var=tk.DoubleVar(),
+            input_args={"from_": '0', "to": '1000', "increment": '.01',
+                        "min_var": min_height_var,
+                        "focus_update_var": max_height_var}
+        )
+        self.inputs['Max Height'].grid(row=1, column=1)
+
+        self.inputs['Median Height'] = LabelInput(
+            plantinfo, 'Median Height (cm)',
+            input_class=ValidatedSpinbox,
+            input_var=tk.DoubleVar(),
+            input_args={
+                'from_': '0', 'to': '1000', 'increment': '.01',
+                'min_var': min_height_var, 'max_var': max_height_var
+            }
+        )
+        self.inputs['Median Height'].grid(row=1, column=2)
+
+        plantinfo.grid(row=2, column=0, sticky="we")
 
         # Notes section
         self.inputs['Notes'] = LabelInput(
@@ -133,8 +208,42 @@ class DataRecordForm(tk.Frame):
         return data
 
     def reset(self):
+        """Resets the form entries"""
+        # gather the values to keep for each lab
+        lab = self.inputs['Lab'].get()
+        time = self.inputs['Time'].get()
+        technician = self.inputs['Technician'].get()
+        plot = self.inputs['Plot'].get()
+        plot_values = self.inputs['Plot'].input.cget('values')
+
+        # clear all values
         for widget in self.inputs.values():
             widget.set('')
+
+        current_date = datetime.today().strftime('%Y-%m-%d')
+        self.inputs['Date'].set(current_date)
+        self.inputs['Time'].input.focus()
+
+        # check if we need to put our values beck, then do it
+        if plot not in ('', plot_values[-1]):
+            self.inputs['Lab'].set(lab)
+            self.inputs['Time'].set(time)
+            self.inputs['Technician'].set(technician)
+            next_plot_index = plot_values.index(plot) + 1
+            self.inputs['Plot'].set(plot_values[next_plot_index])
+            self.inputs['Seed sample'].input.focus()
+
+    def get_errors(self):
+        """Get a list of field errors in the form"""
+
+        errors = {}
+        for key, widget in self.inputs.items():
+            if hasattr(widget.input, 'trigger_focusout_validation'):
+                widget.input.trigger_focusout_validation()
+            if widget.error.get():
+                errors[key] = widget.error.get()
+
+        return errors
 
 
 class ValidatedMixin:
@@ -230,6 +339,150 @@ class DateEntry(ValidatedMixin, ttk.Entry):
         return valid
 
 
+class ValidatedCombobox(ValidatedMixin, ttk.Combobox):
+
+    def _key_validate(self, proposed, action, **kwargs):
+        valid = True
+        # if the user tries to delete, just clear the field
+        if action == '0':
+            self.set('')
+            return True
+
+        # get our values list
+        values = self.cget('values')
+        # Do a case-insensitive match against the entered text
+        matching = [
+            x for x in values
+            if x.lower().startswith(proposed.lower())
+        ]
+        if len(matching) == 0:
+            valid = False
+        elif len(matching) == 1:
+            self.set(matching[0])
+            self.icursor(tk.END)
+            valid = False
+        return valid
+
+    def _focusout_validate(self, **kwargs):
+        valid = True
+        if not self.get():
+            valid = False
+            self.error.set('A value is required')
+        return valid
+
+
+class ValidatedSpinbox(ValidatedMixin, ttk.Spinbox):
+
+    def __init__(self, *args, min_var=None, max_var=None, focus_update_var=None,
+                 from_='-Infinity', to='Infinity', **kwargs):
+        super().__init__(*args, from_=from_, to=to, **kwargs)
+        self.resolution = Decimal(str(kwargs.get('increment', '1.0')))
+        self.precision = (
+            self.resolution
+            .normalize()
+            .as_tuple()
+            .exponent
+        )
+        # there should always be a variable,
+        # or some of our code will fail
+        self.variable = kwargs.get('textvariable') or tk.DoubleVar()
+
+        if min_var:
+            self.min_var = min_var
+            self.min_var.trace('w', self._set_minimum)
+        if max_var:
+            self.max_var = max_var
+            self.max_var.trace('w', self._set_maximum)
+
+        self.focus_update_var = focus_update_var
+        self.bind('<FocusOut>', self._set_focus_update_var)
+
+    def _set_focus_update_var(self, event):
+        value = self.get()
+        if self.focus_update_var and not self.error.get():
+            self.focus_update_var.set(value)
+
+    def _set_minimum(self, *args):
+        current = self.get()
+        try:
+            new_min = self.min_var.get()
+            self.config(from_=new_min)
+        except (tk.TclError, ValueError):
+            pass
+        if not current:
+            self.delete(0, tk.END)
+        else:
+            self.variable.set(current)
+        self.trigger_focusout_validation()
+
+    def _set_maximum(self, *args):
+        current = self.get()
+        try:
+            new_max = self.max_var.get()
+            self.config(to=new_max)
+        except (tk.TclError, ValueError):
+            pass
+        if not current:
+            self.delete(0, tk.END)
+        else:
+            self.variable.set(current)
+        self.trigger_focusout_validation()
+
+    def _key_validate(self, char, index, current, proposed, action, **kwargs):
+        valid = True
+        min_val = self.cget('from')
+        max_val = self.cget('to')
+        no_negative = min_val >= 0
+        no_decimal = self.precision >= 0
+
+        if action == '0':
+            return True
+
+        # First, filter out obviously invalid keystrokes
+        if any([
+            (char not in '1234567890.'),
+            (char == '-' and (no_negative or index != '0')),
+            (char == '.' and (no_decimal or '.' in current))
+        ]):
+            return False
+
+        # At this point, proposed is either '-', '.', '-.',
+        # or a valid Decimal string
+        if proposed in '-.':
+            return True
+
+        # Proposed is a valid Decimal string
+        # convert to Decimal and check more:
+        proposed = Decimal(proposed)
+        proposed_precision = proposed.as_tuple().exponent
+
+        if any([
+            (proposed > max_val),
+            (proposed_precision < self.precision)
+        ]):
+            return False
+        return valid
+
+    def _focusout_validate(self, **kwargs):
+        valid = True
+        value = self.get()
+        min_val = self.cget('from')
+        try:
+            value = Decimal(value)
+        except InvalidOperation:
+            self.error.set(f'Invalid number string: {value}')
+            return False
+
+        if value < min_val:
+            self.error.set(f'Value is too low (min {min_val})')
+            valid = False
+        max_val = self.cget('to')
+        if value > max_val:
+            self.error.set(f'Value is too high (max {max_val})')
+            valid = False  # book didn't have this line
+        return valid
+
+
 class Application(tk.Tk):
     """Application root window"""
 
@@ -258,6 +511,12 @@ class Application(tk.Tk):
         self.records_saved = 0
 
     def on_save(self):
+        # Check for errors first
+        errors = self.recordform.get_errors()
+        if errors:
+            self.status.set(f"Cannot save, error in fields: {', '.join(errors.keys())}")
+            return False
+
         datestring = datetime.today().strftime("%Y-%m-%d")
         filename = 'abq_data_record_{}.csv'.format(datestring)
         newfile = not os.path.exists(filename)
