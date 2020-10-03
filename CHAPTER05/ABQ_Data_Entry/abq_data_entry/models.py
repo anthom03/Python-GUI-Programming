@@ -2,6 +2,7 @@ import csv
 import os
 from .constants import FieldTypes as FT
 
+
 class CSVModel:
     """CSV file storage"""
     fields = {
@@ -33,5 +34,20 @@ class CSVModel:
                        'min': 0, 'max': 1000, 'inc': .01},
         'Median Height': {'req': True, 'type': FT.decimal,
                           'min': 0, 'max': 1000, 'inc': .01},
-        'Notes': {'req': False, 'type': FT.long_string}
+        'Notes': {'req': False, 'type': FT.long_string,
+                  'width': 75, 'height': 10}
     }
+
+    def __init__(self, filename):
+        self.filename = filename
+
+    def save_record(self, data):
+        """Save a dict of data to the CSV file"""
+
+        newfile = not os.path.exists(self.filename)
+
+        with open(self.filename, 'a') as fh:
+            csvwriter = csv.DictWriter(fh, fieldnames=self.fields.keys())
+            if newfile:
+                csvwriter.writeheader()
+            csvwriter.writerow(data)
