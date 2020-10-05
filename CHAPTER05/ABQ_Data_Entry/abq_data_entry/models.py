@@ -34,8 +34,7 @@ class CSVModel:
                        'min': 0, 'max': 1000, 'inc': .01},
         'Median Height': {'req': True, 'type': FT.decimal,
                           'min': 0, 'max': 1000, 'inc': .01},
-        'Notes': {'req': False, 'type': FT.long_string,
-                  'width': 75, 'height': 10}
+        'Notes': {'req': False, 'type': FT.long_string}
     }
 
     def __init__(self, filename):

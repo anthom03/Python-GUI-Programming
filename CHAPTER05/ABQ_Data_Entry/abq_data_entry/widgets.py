@@ -5,95 +5,6 @@ from decimal import Decimal, InvalidOperation
 from .constants import FieldTypes as FT
 
 
-class LabelInput(tk.Frame):
-    """A widget containing a label and input together."""
-
-    field_types = {
-        FT.string: (RequiredEntry, tk.StringVar),
-        FT.string_list: (ValidatedCombobox, tk.StringVar),
-        FT.iso_date_string: (DateEntry, tk.StringVar),
-        FT.long_string: (tk.Text, lambda: None),
-        FT.decimal: (ValidatedSpinbox, tk.DoubleVar),
-
-        FT.integer: (ValidatedSpinbox, tk.IntVar),
-        FT.boolean: (ttk.Checkbutton, tk.BooleanVar)
-    }
-
-    def __init__(self, parent, label='', input_class=None,
-                 input_var=None, input_args=None, label_args=None,
-                 field_spec=None, **kwargs):
-        super().__init__(parent, **kwargs)
-        input_args = input_args or {}
-        label_args = label_args or {}
-        self.variable = input_var
-
-        if field_spec:
-            field_type = field_spec.get('type', FT.string)
-            input_class = input_class or self.field_types.get(field_type)[0]
-            var_type = self.field_types.get(field_type)[1]
-            self.variable = input_var if input_var else var_type()
-            # min, max, increment
-            if 'min' in field_spec and 'from_' not in input_args:
-                input_args['from_'] = field_spec.get('min')
-            if 'max' in field_spec and 'to' not in input_args:
-                input_args['to'] = field_spec.get('max')
-            if 'inc' in field_spec and 'increment' not in input_args:
-                input_args['increment'] = field_spec.get('inc')
-            # values
-            if 'values' in field_spec and 'values' not in input_args:
-                input_args['values'] = field_spec.get('values')
-        else:
-            self.variable = input_var
-
-        if input_class in (ttk.Checkbutton, ttk.Button, ttk.Radiobutton):
-            input_args["text"] = label
-            input_args["variable"] = self.variable
-        else:
-            self.label = ttk.Label(self, text=label, **label_args)
-            self.label.grid(row=0, column=0, sticky=(tk.W + tk.E))
-            input_args["textvariable"] = self.variable
-
-        self.input = input_class(self, **input_args)
-        self.input.grid(row=1, column=0, sticky=(tk.W + tk.E))
-        self.columnconfigure(0, weight=1)
-
-        self.error = getattr(self.input, 'error', tk.StringVar())
-        self.error_label = ttk.Label(self, textvariable=self.error)
-        self.error_label.grid(row=2, column=0, sticky=(tk.W + tk.E))
-
-    def grid(self, sticky=(tk.E + tk.W), **kwargs):
-        super().grid(sticky=sticky, **kwargs)
-
-    def get(self):
-        try:
-            if self.variable:
-                return self.variable.get()
-            elif type(self.input) == tk.Text:
-                return self.input.get('1.0', tk.END)
-            else:
-                return self.input.get()
-        except (TypeError, tk.TclError):
-            # happens when numeric fields are empty
-            return ''
-
-    def set(self, value, *args, **kwargs):
-        if type(self.variable) == tk.BooleanVar:
-            self.variable.set(bool(value))
-        elif self.variable:
-            self.variable.set(value, *args, **kwargs)
-        elif type(self.input) in (ttk.Checkbutton, ttk.Radiobutton):
-            if value:
-                self.input.select()
-            else:
-                self.input.deselect()
-        elif type(self.input) == tk.Text:
-            self.input.delete('1.0',  tk.END)
-            self.input.insert('1.0', value)
-        else: # input must be an Entry-type widget with no variable
-            self.input.delete(0, tk.END)
-            self.input.insert(0, value)
-
-
 class ValidatedMixin:
     """Adds a validation functionality to an input widget"""
 
@@ -329,3 +240,92 @@ class ValidatedSpinbox(ValidatedMixin, ttk.Spinbox):
             self.error.set(f'Value is too high (max {max_val})')
             valid = False  # book didn't have this line
         return valid
+
+
+class LabelInput(tk.Frame):
+    """A widget containing a label and input together."""
+
+    field_types = {
+        FT.string: (RequiredEntry, tk.StringVar),
+        FT.string_list: (ValidatedCombobox, tk.StringVar),
+        FT.iso_date_string: (DateEntry, tk.StringVar),
+        FT.long_string: (tk.Text, lambda: None),
+        FT.decimal: (ValidatedSpinbox, tk.DoubleVar),
+
+        FT.integer: (ValidatedSpinbox, tk.IntVar),
+        FT.boolean: (ttk.Checkbutton, tk.BooleanVar)
+    }
+
+    def __init__(self, parent, label='', input_class=None,
+                 input_var=None, input_args=None, label_args=None,
+                 field_spec=None, **kwargs):
+        super().__init__(parent, **kwargs)
+        input_args = input_args or {}
+        label_args = label_args or {}
+        self.variable = input_var
+
+        if field_spec:
+            field_type = field_spec.get('type', FT.string)
+            input_class = input_class or self.field_types.get(field_type)[0]
+            var_type = self.field_types.get(field_type)[1]
+            self.variable = input_var if input_var else var_type()
+            # min, max, increment
+            if 'min' in field_spec and 'from_' not in input_args:
+                input_args['from_'] = field_spec.get('min')
+            if 'max' in field_spec and 'to' not in input_args:
+                input_args['to'] = field_spec.get('max')
+            if 'inc' in field_spec and 'increment' not in input_args:
+                input_args['increment'] = field_spec.get('inc')
+            # values
+            if 'values' in field_spec and 'values' not in input_args:
+                input_args['values'] = field_spec.get('values')
+        else:
+            self.variable = input_var
+
+        if input_class in (ttk.Checkbutton, ttk.Button, ttk.Radiobutton):
+            input_args["text"] = label
+            input_args["variable"] = self.variable
+        else:
+            self.label = ttk.Label(self, text=label, **label_args)
+            self.label.grid(row=0, column=0, sticky=(tk.W + tk.E))
+            input_args["textvariable"] = self.variable
+
+        self.input = input_class(self, **input_args)
+        self.input.grid(row=1, column=0, sticky=(tk.W + tk.E))
+        self.columnconfigure(0, weight=1)
+
+        self.error = getattr(self.input, 'error', tk.StringVar())
+        self.error_label = ttk.Label(self, textvariable=self.error)
+        self.error_label.grid(row=2, column=0, sticky=(tk.W + tk.E))
+
+    def grid(self, sticky=(tk.E + tk.W), **kwargs):
+        super().grid(sticky=sticky, **kwargs)
+
+    def get(self):
+        try:
+            if self.variable:
+                return self.variable.get()
+            elif type(self.input) == tk.Text:
+                return self.input.get('1.0', tk.END)
+            else:
+                return self.input.get()
+        except (TypeError, tk.TclError):
+            # happens when numeric fields are empty
+            return ''
+
+    def set(self, value, *args, **kwargs):
+        if type(self.variable) == tk.BooleanVar:
+            self.variable.set(bool(value))
+        elif self.variable:
+            self.variable.set(value, *args, **kwargs)
+        elif type(self.input) in (ttk.Checkbutton, ttk.Radiobutton):
+            if value:
+                self.input.select()
+            else:
+                self.input.deselect()
+        elif type(self.input) == tk.Text:
+            self.input.delete('1.0',  tk.END)
+            self.input.insert('1.0', value)
+        else: # input must be an Entry-type widget with no variable
+            self.input.delete(0, tk.END)
+            self.input.insert(0, value)

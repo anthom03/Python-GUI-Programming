@@ -28,7 +28,7 @@ class DataRecordForm(tk.Frame):
         self.inputs['Lab'] = w.LabelInput(recordinfo, 'Lab', field_spec=fields['Lab'])
         self.inputs['Lab'].grid(row=1, column=0)
 
-        self.inputs['Plot'] = w.LabelInput(recordinfo, field_spec=fields['Plot'])
+        self.inputs['Plot'] = w.LabelInput(recordinfo, 'Plot', field_spec=fields['Plot'])
         self.inputs['Plot'].grid(row=1, column=1)
 
         self.inputs['Seed sample'] = w.LabelInput(recordinfo, 'Seed sample', field_spec=fields['Seed sample'])
@@ -151,12 +151,10 @@ class DataRecordForm(tk.Frame):
 
     def get_errors(self):
         """Get a list of field errors in the form"""
-
         errors = {}
         for key, widget in self.inputs.items():
             if hasattr(widget.input, 'trigger_focusout_validation'):
                 widget.input.trigger_focusout_validation()
             if widget.error.get():
                 errors[key] = widget.error.get()
-
         return errors
